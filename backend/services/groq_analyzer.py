@@ -267,6 +267,9 @@ def analyze_report(extracted_data: dict[str, Any]) -> AnalysisResult:
         # Validate through Pydantic
         result = AnalysisResult.model_validate(data)
 
+        # Recalculate risk score programmatically to ensure 100% mathematical consistency
+        _recalculate_risk_score(result)
+
         # Always enforce our disclaimer
         result.disclaimer = DISCLAIMER_TEXT
 
@@ -278,3 +281,52 @@ def analyze_report(extracted_data: dict[str, Any]) -> AnalysisResult:
     except Exception as exc:
         logger.error("Groq API call failed: %s", exc)
         return _fallback_analysis(extracted_data, str(exc))
+
+
+def _recalculate_risk_score(result: AnalysisResult) -> None:
+    """Programmatically calculate the risk score and level based on abnormal markers
+
+    to ensure 100% mathematical consistency across multiple runs of the same report.
+    """
+    score = 0
+    for marker in result.abnormal_markers:
+        severity = str(marker.severity.value if hasattr(marker.severity, "value") else marker.severity).lower()
+        if "mild" in severity:
+            score += 10
+        elif "moderate" in severity:
+            score += 20
+        elif "severe" in severity:
+            score += 35
+        elif "critical" in severity:
+            score += 50
+        else:
+            score += 15 # default fallback for abnormal
+
+    score = min(100, score)
+
+    # Standard brackets: 0-15 = Low, 16-40 = Moderate, 41-70 = High, 71-100 = Critical
+    if score <= 15:
+        level = RiskLevel.LOW
+    elif score <= 40:
+        level = RiskLevel.MODERATE
+    elif score <= 70:
+        level = RiskLevel.HIGH
+    else:
+        level = RiskLevel.CRITICAL
+
+    severity_counts = {}
+    for marker in result.abnormal_markers:
+        sev = str(marker.severity.value if hasattr(marker.severity, "value") else marker.severity).capitalize()
+        severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+    if severity_counts:
+        sev_desc = ", ".join(f"{count} {sev}" for sev, count in severity_counts.items())
+        desc = f"Programmatically calculated based on {len(result.abnormal_markers)} abnormal markers ({sev_desc})."
+    else:
+        desc = "No abnormal markers detected in this laboratory report."
+
+    result.risk_assessment = RiskAssessment(
+        score=score,
+        level=level,
+        description=desc
+    )
