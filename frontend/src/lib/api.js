@@ -1,8 +1,12 @@
-const BACKEND_URL =
+let BACKEND_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== "undefined"
     ? `${window.location.protocol}//${window.location.hostname}:8000`
     : "http://localhost:8000");
+
+if (BACKEND_URL.endsWith("/")) {
+  BACKEND_URL = BACKEND_URL.slice(0, -1);
+}
 
 /**
  * Upload a lab report PDF and get AI analysis

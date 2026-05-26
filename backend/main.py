@@ -72,6 +72,15 @@ ALLOWED_CONTENT_TYPES = {
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+async def root_welcome():
+    """Welcome and health endpoint at the API root."""
+    return {
+        "status": "healthy",
+        "message": "LabInsight API is online. Use POST /api/upload-and-analyze to analyze laboratory health reports."
+    }
+
+
 @app.get("/api/health")
 async def health_check():
     """Simple health-check endpoint."""
