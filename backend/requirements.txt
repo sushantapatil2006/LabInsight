@@ -2,8 +2,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 pymupdf
-easyocr
-numpy
 groq
 reportlab
 python-dotenv
+httpx

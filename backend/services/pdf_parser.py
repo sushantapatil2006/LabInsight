@@ -27,42 +27,61 @@ logger = logging.getLogger(__name__)
 _MIN_TEXT_LENGTH = 50
 
 
-# Singleton reader to avoid reloading models for every page
-_easyocr_reader = None
+import os
+import httpx
+
+def _run_ocr_space(file_bytes: bytes, filename: str = "image.png") -> Optional[str]:
+    """Send image bytes to OCR.space API for lightweight in-memory OCR."""
+    api_key = os.getenv("OCR_SPACE_API_KEY", "helloworld")
+    try:
+        url = "https://api.ocr.space/parse/image"
+        # OCR.space expects form data
+        data = {
+            "apikey": api_key,
+            "language": "eng",
+            "isOverlayRequired": "false",
+            "detectOrientation": "true",
+            "scale": "true",
+        }
+        files = {
+            "file": (filename, file_bytes, "image/png")
+        }
+        
+        logger.info("Sending OCR request to OCR.space API (key=%s)...", "helloworld" if api_key == "helloworld" else "custom")
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(url, data=data, files=files)
+            
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("IsErroredOnProcessing") is False:
+                parsed_results = result.get("ParsedResults", [])
+                if parsed_results:
+                    text = parsed_results[0].get("ParsedText", "")
+                    return text.strip() if text else None
+            else:
+                error_msg = result.get("ErrorMessage")
+                logger.error("OCR.space API processing error: %s", error_msg)
+        else:
+            logger.error("OCR.space API HTTP error %d: %s", response.status_code, response.text)
+    except Exception as exc:
+        logger.exception("OCR.space request failed")
+    return None
+
 
 def _ocr_page(page: fitz.Page, dpi: int = 200) -> Optional[str]:
-    """Render *page* to an image and use EasyOCR to extract text."""
-    global _easyocr_reader
+    """Render *page* to a PNG and use OCR.space API to extract text."""
     try:
-        import easyocr
-        import numpy as np
-    except ImportError:
-        logger.warning("easyocr not installed, skipping OCR")
-        return None
-
-    try:
-        if _easyocr_reader is None:
-            # Initialize reader (will download models on first run if not present)
-            # verbose=False prevents the UnicodeEncodeError progress bar crash on Windows
-            _easyocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-
         # Render page to a pixmap
         mat = fitz.Matrix(dpi / 72, dpi / 72)
         pix = page.get_pixmap(matrix=mat, alpha=False)
         
-        # Convert pixmap to numpy array (RGB)
-        img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-        if pix.n == 4:
-            # Drop alpha channel
-            img_data = img_data[:, :, :3]
-
-        # Read text
-        results = _easyocr_reader.readtext(img_data, detail=0)
-        text = "\n".join(results)
+        # Convert pixmap to PNG bytes directly in-memory
+        img_bytes = pix.tobytes("png")
         
-        return text.strip() if text else None
+        # Run OCR.space on the PNG bytes
+        return _run_ocr_space(img_bytes, f"page_{page.number}.png")
     except Exception:
-        logger.exception("EasyOCR failed for page %s", page.number)
+        logger.exception("OCR failed for page %s", page.number)
         return None
 
 
@@ -136,34 +155,12 @@ def extract_text_from_image(file_bytes: bytes) -> str:
     Raises
     ------
     ValueError
-        If easyocr is not installed or text extraction fails.
+        If text extraction fails.
     """
-    global _easyocr_reader
     try:
-        import easyocr
-        import numpy as np
-        from PIL import Image
-    except ImportError as exc:
-        raise ValueError(f"Required OCR libraries (easyocr, numpy, Pillow) are not installed: {exc}")
-
-    try:
-        if _easyocr_reader is None:
-            # Initialize reader with verbose=False to prevent progress bar Unicode crash
-            _easyocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-
-        # Open image using Pillow in-memory
-        img = Image.open(io.BytesIO(file_bytes))
-        
-        # Convert image to RGB numpy array
-        img_rgb = img.convert("RGB")
-        img_data = np.array(img_rgb)
-
-        # Read text
-        results = _easyocr_reader.readtext(img_data, detail=0)
-        text = "\n".join(results)
-        
-        return text.strip() if text else ""
+        text = _run_ocr_space(file_bytes, "uploaded_image.png")
+        return text if text else ""
     except Exception as exc:
-        logger.exception("EasyOCR failed for image file")
+        logger.exception("OCR.space failed for image file")
         raise ValueError(f"Failed to extract text from the image: {exc}") from exc
 
