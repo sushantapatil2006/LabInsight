@@ -1,0 +1,1 @@
+# LabInsight - Models package
