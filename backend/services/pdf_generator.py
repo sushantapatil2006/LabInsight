@@ -262,21 +262,7 @@ def _abnormal_markers_section(styles: dict, analysis: AnalysisResult) -> list:
     return elements
 
 
-def _risk_section(styles: dict, analysis: AnalysisResult) -> list:
-    elements: list = []
-    ra = analysis.risk_assessment
-    if ra.score == 0 and ra.level.value == "Low" and not ra.description:
-        return elements
 
-    elements.append(Paragraph("Risk Assessment", styles["section"]))
-    elements.append(Paragraph(
-        f"<b>Score:</b> {ra.score}/100 &nbsp;&nbsp; <b>Level:</b> {ra.level.value}",
-        styles["body"],
-    ))
-    if ra.description:
-        elements.append(Paragraph(ra.description, styles["body"]))
-    elements.append(Spacer(1, 6))
-    return elements
 
 
 def _concerns_section(styles: dict, analysis: AnalysisResult) -> list:
@@ -362,7 +348,6 @@ def generate_analysis_pdf(analysis: AnalysisResult) -> bytes:
     story.extend(_status_badge(styles, analysis))
     story.extend(_summary_section(styles, analysis))
     story.extend(_abnormal_markers_section(styles, analysis))
-    story.extend(_risk_section(styles, analysis))
     story.extend(_concerns_section(styles, analysis))
     story.extend(_recommendations_section(styles, analysis))
     story.extend(_disclaimer_section(styles, analysis))
