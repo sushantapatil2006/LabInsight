@@ -5,7 +5,6 @@ import { Download, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SummaryCard from "@/components/SummaryCard";
 import AbnormalTable from "@/components/AbnormalTable";
-import RiskMeter from "@/components/RiskMeter";
 import InsightsPanel from "@/components/InsightsPanel";
 import RecommendationsPanel from "@/components/RecommendationsPanel";
 import DisclaimerBanner from "@/components/DisclaimerBanner";
@@ -63,11 +62,8 @@ export default function ResultsDashboard({ analysisData, onReset, onDownload }) 
           {/* Summary */}
           <SummaryCard data={data} />
 
-          {/* Risk meter and insights side by side on larger screens */}
-          <div className="grid lg:grid-cols-2 gap-6">
-            <RiskMeter data={data} />
-            <InsightsPanel data={data} />
-          </div>
+          {/* Key Insights */}
+          <InsightsPanel data={data} />
 
           {/* Lab values table */}
           <AbnormalTable data={data} />
